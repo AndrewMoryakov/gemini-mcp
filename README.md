@@ -1,17 +1,35 @@
 # Gemini MCP Server
 
-An MCP Server that provides access to the Gemini Suite.
+An MCP Server that provides access to the Gemini Suite, including the latest **Gemini 3 Flash** model.
 
 ## ✨ Features
 
-- Support for 1.5 through 2.5 pro
-- Nano Banana
-- Embeddings
-- File Upload
-- Batch (NLP and Embeddings)
+- **Gemini 3 Flash** - Latest model with frontier intelligence (December 2025)
+- **Gemini 3 Pro** - Advanced reasoning capabilities
+- **Gemini 2.5 Pro/Flash** - Balanced performance
+- **Image Generation** - Text-to-image and image editing
+- **Embeddings** - 1536-dimensional vectors
+- **Batch Processing** - 50% cost reduction for large-scale tasks
+- **File Upload** - Multi-file support with 1M+ token context
+- **Conversation Memory** - Persistent chat sessions
 
+## 📊 Supported Models
+
+| Model | ID | Context | Best For |
+|-------|-----|---------|----------|
+| **Gemini 3 Flash** | `gemini-3-flash` | 1M tokens | Fast, cost-effective, agentic coding |
+| Gemini 3 Pro | `gemini-3-pro-preview` | 1M tokens | Complex reasoning |
+| Gemini 2.5 Pro | `gemini-2.5-pro` | 2M tokens | Deep analysis |
+| Gemini 2.5 Flash | `gemini-2.5-flash` | 1M tokens | General use |
+| Gemini 2.0 Flash | `gemini-2.0-flash-exp` | 1M tokens | Legacy support |
+
+**Pricing (Gemini 3 Flash):** $0.50/1M input tokens, $3/1M output tokens
 
 ## 🚀 Quick Start
+
+### Prerequisites
+
+Get your API key from [Google AI Studio](https://makersuite.google.com/app/apikey)
 
 ### Option 1: NPX (No Install Required)
 
@@ -29,18 +47,24 @@ npm install -g @mintmcqueen/gemini-mcp
 claude mcp add gemini -s user --env GEMINI_API_KEY=YOUR_KEY_HERE -- gemini-mcp
 ```
 
-### Option 3: Local Project Install
+### Option 3: From GitHub Fork
 
 ```bash
-# Install in your project
-npm install @mintmcqueen/gemini-mcp
+# Clone the repository
+git clone https://github.com/AndrewMoryakov/gemini-mcp.git
+cd gemini-mcp
 
-# Add to Claude Code (adjust path as needed)
-claude mcp add gemini -s project --env GEMINI_API_KEY=YOUR_KEY_HERE -- node node_modules/@mintmcqueen/gemini-mcp/build/index.js
+# Install and build
+npm install
+npm run build
+
+# Add to Claude Code
+claude mcp add gemini -s user --env GEMINI_API_KEY=YOUR_KEY_HERE -- node /path/to/gemini-mcp/build/index.js
 ```
-After any installation method, restart Claude Code and you're ready to use Gemini.
 
-### Shell Environment
+After any installation method, **restart Claude Code** and you're ready to use Gemini.
+
+### Shell Environment (Alternative)
 - **File:** `~/.zshrc` or `~/.bashrc`
 - **Format:** `export GEMINI_API_KEY="your-key-here"`
 
@@ -55,14 +79,60 @@ Send a message to Gemini with optional file attachments.
 
 Parameters:
 - `message` (required): The message to send
-- `model` (optional): Model to use (gemini-2.5-pro, gemini-2.5-flash, gemini-2.5-flash-lite)
-- `files` (optional): Array of files with base64 encoded data
-- `temperature` (optional): Controls randomness (0.0-2.0)
-- `maxTokens` (optional): Maximum response tokens
+- `model` (optional): Model to use (default: `gemini-3-flash`)
+  - `gemini-3-flash` - Fastest, recommended for most tasks
+  - `gemini-3-pro-preview` - Most capable
+  - `gemini-2.5-pro` - Large context (2M tokens)
+  - `gemini-2.5-flash` - Balanced performance
+  - `gemini-2.0-flash-exp` - Legacy
+- `fileUris` (optional): Array of file URIs from uploaded files
+- `temperature` (optional): Controls randomness (0.0-2.0, default: 1.0)
+- `maxTokens` (optional): Maximum response tokens (up to 500,000)
 - `conversationId` (optional): Continue an existing conversation
 
+**Example:**
+```javascript
+chat({
+  message: "Analyze this code for security issues",
+  model: "gemini-3-flash",
+  fileUris: ["files/abc123"],
+  maxTokens: 8000
+})
+```
+
+#### `upload_file`
+Upload a single file to Gemini for analysis.
+
+Parameters:
+- `filePath` (required): Absolute path to the file
+- `displayName` (optional): Custom name for the file
+- `mimeType` (optional): MIME type (auto-detected if not provided)
+
+**Example:**
+```javascript
+upload_file({ filePath: "/path/to/document.pdf" })
+// Returns: { uri: "files/abc123", state: "ACTIVE" }
+```
+
+#### `upload_multiple_files`
+Upload multiple files efficiently with parallel processing.
+
+Parameters:
+- `filePaths` (required): Array of absolute file paths
+- `maxConcurrent` (optional): Parallel uploads (default: 5, max: 10)
+- `waitForProcessing` (optional): Wait for ACTIVE state (default: true)
+
+**Example:**
+```javascript
+upload_multiple_files({
+  filePaths: ["/path/to/file1.pdf", "/path/to/file2.md"],
+  maxConcurrent: 5
+})
+// Returns: { successful: [...], failed: [], totalRequested: 2 }
+```
+
 #### `start_conversation`
-Start a new conversation session.
+Start a new conversation session for multi-turn chat.
 
 Parameters:
 - `id` (optional): Custom conversation ID
@@ -74,22 +144,15 @@ Parameters:
 - `id` (required): Conversation ID to clear
 
 #### `generate_images`
-Generate images from text prompts or edit existing images using Gemini 2.5 Flash Image model.
+Generate images from text prompts or edit existing images using Gemini image models.
 
 Parameters:
-- `prompt` (required): Text description of image to generate or editing instructions
-- `aspectRatio` (optional): Image aspect ratio - `1:1`, `2:3`, `3:2`, `3:4`, `4:3`, `4:5`, `5:4`, `9:16`, `16:9`, `21:9` (default: `1:1`)
-- `numImages` (optional): Number of images to generate, 1-4 (default: `1`). Note: Makes sequential API calls, ~10-15s per image.
-- `inputImageUri` (optional): File URI from uploaded file for image editing (omit for text-to-image generation)
-- `outputDir` (optional): Directory to save generated images (default: `./generated-images`)
-- `temperature` (optional): Controls randomness (0.0-2.0, default: 1.0)
-
-Returns:
-- Array of generated images with file paths and base64 data
-- Token usage (~1,290-1,300 tokens per image)
-- All images include SynthID watermark
-
-**Performance Note:** The Gemini API generates one image per request. When `numImages > 1`, the tool makes multiple sequential API calls to generate the requested number of images. Expect ~10-15 seconds per image.
+- `prompt` (required): Text description or editing instructions
+- `aspectRatio` (optional): `1:1`, `2:3`, `3:2`, `3:4`, `4:3`, `4:5`, `5:4`, `9:16`, `16:9`, `21:9` (default: `1:1`)
+- `numImages` (optional): Number of images, 1-4 (default: 1)
+- `inputImageUri` (optional): File URI for image editing
+- `outputDir` (optional): Save directory (default: `./generated-images`)
+- `temperature` (optional): Randomness (0.0-2.0, default: 1.0)
 
 **Text-to-Image Example:**
 ```javascript
@@ -98,12 +161,11 @@ generate_images({
   aspectRatio: "16:9",
   numImages: 2
 })
-// Generates 2 images saved to ./generated-images/
 ```
 
 **Image Editing Example:**
 ```javascript
-// First, upload the image to edit
+// First, upload the image
 upload_file({ filePath: "./photo.jpg" })
 // Returns: { uri: "files/abc123" }
 
@@ -112,10 +174,9 @@ generate_images({
   prompt: "Add a wizard hat to the subject",
   inputImageUri: "files/abc123"
 })
-// Generates edited image saved to ./generated-images/
 ```
 
-### 🆕 Batch API Tools (v0.3.0)
+### Batch API Tools
 
 Process large-scale tasks asynchronously at **50% cost** with ~24 hour turnaround.
 
@@ -123,72 +184,46 @@ Process large-scale tasks asynchronously at **50% cost** with ~24 hour turnaroun
 
 **Simple (Automated):**
 ```javascript
-// One-call solution: Ingest → Upload → Create → Poll → Download
 batch_process({
   inputFile: "prompts.csv",  // CSV, JSON, TXT, or MD
   model: "gemini-2.5-flash"
 })
-// Returns: Complete results with metadata
 ```
 
 **Advanced (Manual Control):**
 ```javascript
-// 1. Convert your file to JSONL
+// 1. Convert to JSONL
 batch_ingest_content({ inputFile: "prompts.csv" })
-// Returns: { outputFile: "prompts.jsonl", requestCount: 100 }
 
 // 2. Upload JSONL
 upload_file({ filePath: "prompts.jsonl" })
-// Returns: { uri: "files/abc123" }
 
 // 3. Create batch job
 batch_create({
   inputFileUri: "files/abc123",
   model: "gemini-2.5-flash"
 })
-// Returns: { batchName: "batches/xyz789" }
 
 // 4. Monitor progress
 batch_get_status({
   batchName: "batches/xyz789",
-  autoPoll: true  // Wait until complete
+  autoPoll: true
 })
-// Returns: { state: "SUCCEEDED", stats: {...} }
 
 // 5. Download results
 batch_download_results({ batchName: "batches/xyz789" })
-// Returns: { results: [...], outputFile: "results.json" }
 ```
 
 #### Embeddings
 
-**Simple (Automated):**
 ```javascript
-// One-call solution with automatic task type prompting
 batch_process_embeddings({
   inputFile: "documents.txt",
-  // taskType optional - will prompt if not provided
+  taskType: "RETRIEVAL_DOCUMENT"  // Optional - will prompt if not provided
 })
-// Returns: 1536-dimensional embeddings array
 ```
 
-**Advanced (Manual Control):**
-```javascript
-// 1. Select task type (if unsure)
-batch_query_task_type({
-  context: "Building a search engine"
-})
-// Returns: { selectedTaskType: "RETRIEVAL_DOCUMENT", recommendation: {...} }
-
-// 2. Ingest content for embeddings
-batch_ingest_embeddings({ inputFile: "documents.txt" })
-// Returns: { outputFile: "documents.embeddings.jsonl" }
-
-// 3-5. Same as content generation workflow
-// 6. Results contain 1536-dimensional vectors
-```
-
-**Task Types (8 options):**
+**Task Types:**
 - `SEMANTIC_SIMILARITY` - Compare text similarity
 - `CLASSIFICATION` - Categorize content
 - `CLUSTERING` - Group similar items
@@ -201,19 +236,9 @@ batch_ingest_embeddings({ inputFile: "documents.txt" })
 #### Job Management
 
 ```javascript
-// Cancel running job
 batch_cancel({ batchName: "batches/xyz789" })
-
-// Delete completed job
 batch_delete({ batchName: "batches/xyz789" })
 ```
-
-**Supported Input Formats:**
-- CSV (converts rows to requests)
-- JSON (wraps objects as requests)
-- TXT (splits lines as requests)
-- MD (markdown sections as requests)
-- JSONL (ready to use)
 
 ### MCP Resources
 
@@ -231,12 +256,17 @@ npm run watch        # Watch mode
 npm run dev          # Build + auto-restart
 npm run inspector    # Debug with MCP Inspector
 ```
-### Connection Failures
 
-If Claude Code fails to connect:
+### Troubleshooting
+
+**Connection Failures:**
 1. Verify your API key is correct
 2. Check that the command path is correct (for local installs)
 3. Restart Claude Code after configuration changes
+
+**Rate Limits:**
+- Free tier: 60 requests/minute, 1,000 requests/day
+- Paid tier: Higher limits based on plan
 
 ## 🔒 Security
 
@@ -261,3 +291,9 @@ MIT - see LICENSE file
 
 - **MCP Protocol**: https://modelcontextprotocol.io
 - **Gemini API Docs**: https://ai.google.dev/docs
+- **Gemini 3 Flash Announcement**: https://blog.google/products/gemini/gemini-3-flash/
+
+---
+
+**Fork maintained by:** [@AndrewMoryakov](https://github.com/AndrewMoryakov)
+**Original by:** [@MintMcQueen](https://github.com/MintMcQueen/gemini-mcp)

@@ -31,6 +31,7 @@ import { createPartFromUri } from "@google/genai";
 const MODELS = {
   // Gemini 3 models (newest - default)
   PRO_3: "gemini-3-pro-preview",
+  FLASH_3: "gemini-3-flash",
   IMAGE_GEN_3: "gemini-3-pro-image-preview",
   // Gemini 2.5 models
   PRO_25: "gemini-2.5-pro",
@@ -295,7 +296,7 @@ class GeminiMCPServer {
                 },
                 model: {
                   type: "string",
-                  enum: [MODELS.PRO_3, MODELS.PRO_25, MODELS.FLASH_25, MODELS.FLASH_20],
+                  enum: [MODELS.PRO_3, MODELS.FLASH_3, MODELS.PRO_25, MODELS.FLASH_25, MODELS.FLASH_20],
                   description: "The Gemini model to use",
                   default: MODELS.PRO_3,
                 },
@@ -460,7 +461,7 @@ class GeminiMCPServer {
               properties: {
                 model: {
                   type: "string",
-                  enum: [MODELS.PRO_3, MODELS.PRO_25, MODELS.FLASH_25, MODELS.FLASH_20],
+                  enum: [MODELS.PRO_3, MODELS.FLASH_3, MODELS.PRO_25, MODELS.FLASH_25, MODELS.FLASH_20],
                   description: "Gemini model for content generation",
                   default: MODELS.FLASH_25,
                 },
@@ -512,7 +513,7 @@ class GeminiMCPServer {
                 },
                 model: {
                   type: "string",
-                  enum: [MODELS.PRO_3, MODELS.PRO_25, MODELS.FLASH_25, MODELS.FLASH_20],
+                  enum: [MODELS.PRO_3, MODELS.FLASH_3, MODELS.PRO_25, MODELS.FLASH_25, MODELS.FLASH_20],
                   description: "Gemini model for content generation",
                   default: MODELS.FLASH_25,
                 },
