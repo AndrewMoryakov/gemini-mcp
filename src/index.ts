@@ -432,9 +432,9 @@ class GeminiMCPServer {
                 },
                 model: {
                   type: "string",
-                  enum: [MODELS.PRO_3, MODELS.FLASH_3, MODELS.PRO_25, MODELS.FLASH_25, MODELS.FLASH_20],
+                  enum: [MODELS.FLASH_3, MODELS.PRO_3, MODELS.PRO_25, MODELS.FLASH_25, MODELS.FLASH_20],
                   description: "The Gemini model to use",
-                  default: MODELS.PRO_3,
+                  default: MODELS.FLASH_3,
                 },
                 fileUris: {
                   type: "array",
@@ -1540,7 +1540,7 @@ class GeminiMCPServer {
 
   private async handleChat(args: any) {
     const message = args?.message;
-    const model = args?.model || MODELS.PRO_3;
+    const model = args?.model || MODELS.FLASH_3;
     const fileUris = args?.fileUris || [];
     const temperature = args?.temperature || 1.0;
     const maxTokens = args?.maxTokens || 15000;
