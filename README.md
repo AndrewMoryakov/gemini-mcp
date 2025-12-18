@@ -27,27 +27,33 @@ An MCP Server that provides access to the Gemini Suite, including the latest **G
 
 ## 🚀 Quick Start
 
-### Prerequisites
+### Authentication Options
+
+This fork supports **two authentication methods**:
+
+#### Option A: OAuth via Gemini CLI (Recommended - No API Key Needed!)
+
+If you already use [Gemini CLI](https://github.com/google-gemini/gemini-cli), just login once:
+
+```bash
+npx @google/gemini-cli login
+```
+
+The MCP server will automatically use your OAuth credentials from `~/.gemini/oauth_creds.json`. No API key required!
+
+**Benefits:**
+- No API key management
+- Uses your Google account
+- Automatic token refresh
+- Same auth as Gemini CLI
+
+#### Option B: API Key
 
 Get your API key from [Google AI Studio](https://makersuite.google.com/app/apikey)
 
-### Option 1: NPX (No Install Required)
+### Installation
 
-```bash
-claude mcp add gemini -s user --env GEMINI_API_KEY=YOUR_KEY_HERE -- npx -y @mintmcqueen/gemini-mcp@latest
-```
-
-### Option 2: Global Install
-
-```bash
-# Install globally
-npm install -g @mintmcqueen/gemini-mcp
-
-# Add to Claude Code
-claude mcp add gemini -s user --env GEMINI_API_KEY=YOUR_KEY_HERE -- gemini-mcp
-```
-
-### Option 3: From GitHub Fork
+#### Option 1: From GitHub Fork (with OAuth support)
 
 ```bash
 # Clone the repository
@@ -58,13 +64,29 @@ cd gemini-mcp
 npm install
 npm run build
 
-# Add to Claude Code
+# Add to Claude Code (no API key needed if you use OAuth!)
+claude mcp add gemini -s user -- node /path/to/gemini-mcp/build/index.js
+
+# Or with API key:
 claude mcp add gemini -s user --env GEMINI_API_KEY=YOUR_KEY_HERE -- node /path/to/gemini-mcp/build/index.js
+```
+
+#### Option 2: NPX with API Key
+
+```bash
+claude mcp add gemini -s user --env GEMINI_API_KEY=YOUR_KEY_HERE -- npx -y @mintmcqueen/gemini-mcp@latest
+```
+
+#### Option 3: Global Install with API Key
+
+```bash
+npm install -g @mintmcqueen/gemini-mcp
+claude mcp add gemini -s user --env GEMINI_API_KEY=YOUR_KEY_HERE -- gemini-mcp
 ```
 
 After any installation method, **restart Claude Code** and you're ready to use Gemini.
 
-### Shell Environment (Alternative)
+### Shell Environment (Alternative for API Key)
 - **File:** `~/.zshrc` or `~/.bashrc`
 - **Format:** `export GEMINI_API_KEY="your-key-here"`
 
