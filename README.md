@@ -17,7 +17,7 @@ An MCP Server that provides access to the Gemini Suite, including the latest **G
 
 | Model | ID | Context | Best For |
 |-------|-----|---------|----------|
-| **Gemini 3 Flash** | `gemini-3-flash` | 1M tokens | Fast, cost-effective, agentic coding |
+| **Gemini 3 Flash** | `gemini-3-flash-preview` | 1M tokens | Fast, cost-effective, agentic coding |
 | Gemini 3 Pro | `gemini-3-pro-preview` | 1M tokens | Complex reasoning |
 | Gemini 2.5 Pro | `gemini-2.5-pro` | 2M tokens | Deep analysis |
 | Gemini 2.5 Flash | `gemini-2.5-flash` | 1M tokens | General use |
@@ -101,8 +101,8 @@ Send a message to Gemini with optional file attachments.
 
 Parameters:
 - `message` (required): The message to send
-- `model` (optional): Model to use (default: `gemini-3-flash`)
-  - `gemini-3-flash` - Fastest, recommended for most tasks
+- `model` (optional): Model to use (default: `gemini-3-flash-preview`)
+  - `gemini-3-flash-preview` - Fastest, recommended for most tasks
   - `gemini-3-pro-preview` - Most capable
   - `gemini-2.5-pro` - Large context (2M tokens)
   - `gemini-2.5-flash` - Balanced performance
@@ -116,7 +116,7 @@ Parameters:
 ```javascript
 chat({
   message: "Analyze this code for security issues",
-  model: "gemini-3-flash",
+  model: "gemini-3-flash-preview",
   fileUris: ["files/abc123"],
   maxTokens: 8000
 })

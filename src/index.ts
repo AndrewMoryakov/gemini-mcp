@@ -31,7 +31,7 @@ import { createPartFromUri } from "@google/genai";
 const MODELS = {
   // Gemini 3 models (newest - default)
   PRO_3: "gemini-3-pro-preview",
-  FLASH_3: "gemini-3-flash",
+  FLASH_3: "gemini-3-flash-preview",
   IMAGE_GEN_3: "gemini-3-pro-image-preview",
   // Gemini 2.5 models
   PRO_25: "gemini-2.5-pro",
