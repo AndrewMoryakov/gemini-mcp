@@ -25,70 +25,174 @@ An MCP Server that provides access to the Gemini Suite, including the latest **G
 
 **Pricing (Gemini 3 Flash):** $0.50/1M input tokens, $3/1M output tokens
 
-## 🚀 Quick Start
+## 🚀 Quick Start (5 minutes)
 
-### Authentication Options
+### Step 1: Choose Your Auth Method
 
-This fork supports **two authentication methods**:
+| Method | Best For | Difficulty |
+|--------|----------|------------|
+| **API Key** | Most users, quick setup | ⭐ Easy |
+| **gcloud OAuth** | Pro subscription, Google Cloud users | ⭐⭐ Medium |
 
-#### Option A: OAuth via Gemini CLI (Recommended - No API Key Needed!)
+---
 
-If you already use [Gemini CLI](https://github.com/google-gemini/gemini-cli), just login once:
+### 🔑 Option A: API Key (Recommended for most users)
 
-```bash
-npx @google/gemini-cli login
-```
+**Step 1.1:** Get your API key
+1. Go to [Google AI Studio](https://aistudio.google.com/apikey)
+2. Sign in with Google
+3. Click "Create API Key"
+4. Copy the key
 
-The MCP server will automatically use your OAuth credentials from `~/.gemini/oauth_creds.json`. No API key required!
-
-**Benefits:**
-- No API key management
-- Uses your Google account
-- Automatic token refresh
-- Same auth as Gemini CLI
-
-#### Option B: API Key
-
-Get your API key from [Google AI Studio](https://makersuite.google.com/app/apikey)
-
-### Installation
-
-#### Option 1: From GitHub Fork (with OAuth support)
-
-```bash
-# Clone the repository
-git clone https://github.com/AndrewMoryakov/gemini-mcp.git
-cd gemini-mcp
-
-# Install and build
-npm install
-npm run build
-
-# Add to Claude Code (no API key needed if you use OAuth!)
-claude mcp add gemini -s user -- node /path/to/gemini-mcp/build/index.js
-
-# Or with API key:
-claude mcp add gemini -s user --env GEMINI_API_KEY=YOUR_KEY_HERE -- node /path/to/gemini-mcp/build/index.js
-```
-
-#### Option 2: NPX with API Key
-
+**Step 1.2:** Install MCP server
 ```bash
 claude mcp add gemini -s user --env GEMINI_API_KEY=YOUR_KEY_HERE -- npx -y @mintmcqueen/gemini-mcp@latest
 ```
 
-#### Option 3: Global Install with API Key
+**Step 1.3:** Restart Claude Code
 
-```bash
-npm install -g @mintmcqueen/gemini-mcp
-claude mcp add gemini -s user --env GEMINI_API_KEY=YOUR_KEY_HERE -- gemini-mcp
+**Step 1.4:** Test it works
+```
+Ask Claude: "Use Gemini to say hello"
 ```
 
-After any installation method, **restart Claude Code** and you're ready to use Gemini.
+✅ **Done!** You can now use Gemini in Claude Code.
 
-### Shell Environment (Alternative for API Key)
-- **File:** `~/.zshrc` or `~/.bashrc`
-- **Format:** `export GEMINI_API_KEY="your-key-here"`
+---
+
+### 🔐 Option B: gcloud OAuth (For Pro/Paid Users)
+
+Use this if you have Gemini Pro subscription and want OAuth instead of API key.
+
+**Step 1.1:** Install gcloud SDK
+
+<details>
+<summary>Windows</summary>
+
+1. Download installer: https://cloud.google.com/sdk/docs/install
+2. Run `GoogleCloudSDKInstaller.exe`
+3. Follow the wizard (keep defaults)
+4. Open new terminal after installation
+</details>
+
+<details>
+<summary>macOS</summary>
+
+```bash
+brew install google-cloud-sdk
+```
+</details>
+
+<details>
+<summary>Linux</summary>
+
+```bash
+curl https://sdk.cloud.google.com | bash
+exec -l $SHELL
+```
+</details>
+
+**Step 1.2:** Authenticate with Google
+```bash
+gcloud auth application-default login --scopes="https://www.googleapis.com/auth/cloud-platform"
+```
+- Browser opens → Sign in with your Google account (with Pro subscription)
+- Click "Allow"
+
+**Step 1.3:** Clone and build MCP server
+```bash
+git clone https://github.com/AndrewMoryakov/gemini-mcp.git
+cd gemini-mcp
+npm install
+npm run build
+```
+
+**Step 1.4:** Add to Claude Code
+
+Windows:
+```bash
+claude mcp add gemini -s user -- node C:/path/to/gemini-mcp/build/index.js
+```
+
+macOS/Linux:
+```bash
+claude mcp add gemini -s user -- node /path/to/gemini-mcp/build/index.js
+```
+
+**Step 1.5:** Restart Claude Code
+
+**Step 1.6:** Test it works
+```
+Ask Claude: "Use Gemini to say hello"
+```
+
+✅ **Done!** OAuth credentials are used automatically.
+
+---
+
+### 🔧 Troubleshooting Quick Start
+
+| Problem | Solution |
+|---------|----------|
+| "API key not valid" | Check key is correct, no extra spaces |
+| "UNAUTHENTICATED" | Run `gcloud auth application-default login` again |
+| "Tool not found" | Restart Claude Code |
+| Nothing happens | Check `claude mcp list` shows "gemini" |
+
+## 🤖 For AI Agents (Claude)
+
+This section explains how to use Gemini tools effectively.
+
+### When to Use Gemini
+
+| Use Case | Tool | Example |
+|----------|------|---------|
+| Analyze large files (>100KB) | `upload_file` → `chat` | "Upload this 500KB log and find errors" |
+| Cross-reference multiple docs | `upload_multiple_files` → `chat` | "Compare these 5 specs for conflicts" |
+| Generate images | `generate_images` | "Create a diagram of this architecture" |
+| Long analysis (>1M tokens) | `chat` with conversation | Use Gemini's 1M context window |
+| Batch processing | `batch_process` | Process 100 prompts at 50% cost |
+
+### Basic Workflow
+
+```
+1. Upload files (if needed):
+   upload_file({ filePath: "/path/to/file.pdf" })
+   → Returns: { uri: "files/abc123" }
+
+2. Chat with Gemini:
+   chat({
+     message: "Analyze this document for security issues",
+     fileUris: ["files/abc123"]
+   })
+   → Returns: Analysis text
+
+3. For multi-turn conversations:
+   start_conversation({ id: "analysis-session" })
+   chat({ message: "First question", conversationId: "analysis-session" })
+   chat({ message: "Follow-up", conversationId: "analysis-session" })
+   clear_conversation({ id: "analysis-session" })
+```
+
+### Model Selection Guide
+
+```
+For most tasks:        → gemini-3-flash-preview (default, fast, cheap)
+For complex reasoning: → gemini-2.5-pro (2M context, deep analysis)
+For image generation:  → gemini-3-pro-image-preview (default)
+
+Change session default:
+set_default_model({ category: "chat", model: "gemini-2.5-pro" })
+```
+
+### Best Practices
+
+1. **Upload first, then chat** — Don't include file content in message
+2. **Use conversations** for multi-turn analysis — Maintains context
+3. **Check defaults** with `get_default_models()` before starting
+4. **Clean up** files after batch processing with `cleanup_all_files()`
+
+---
 
 ## Usage
 
@@ -164,6 +268,25 @@ Clear a conversation session.
 
 Parameters:
 - `id` (required): Conversation ID to clear
+
+#### `set_default_model`
+Change the default model for a category during the current session.
+
+Parameters:
+- `category` (required): `chat`, `batch`, `image`, or `embedding`
+- `model` (required): Model ID (e.g., `gemini-2.5-pro`)
+
+**Example:**
+```javascript
+set_default_model({
+  category: "chat",
+  model: "gemini-2.5-pro"
+})
+// All subsequent chat calls will use gemini-2.5-pro by default
+```
+
+#### `get_default_models`
+Show current default models for all categories (config + session overrides).
 
 #### `generate_images`
 Generate images from text prompts or edit existing images using Gemini image models.
@@ -270,6 +393,53 @@ Information about available Gemini models and their capabilities.
 #### `gemini://conversations/active`
 List of active conversation sessions with metadata.
 
+## ⚙️ Model Configuration
+
+Models can be configured dynamically without code changes.
+
+### Option 1: Edit `models.config.json`
+
+Located in the package root directory:
+
+```json
+{
+  "chat": {
+    "models": ["gemini-3-flash-preview", "gemini-3-pro-preview", "gemini-2.5-pro"],
+    "default": "gemini-3-flash-preview"
+  },
+  "batch": {
+    "models": ["gemini-2.5-flash", "gemini-2.5-pro"],
+    "default": "gemini-2.5-flash"
+  },
+  "image": {
+    "models": ["gemini-3-pro-image-preview", "gemini-2.5-flash-image"],
+    "default": "gemini-3-pro-image-preview"
+  },
+  "embedding": {
+    "models": ["gemini-embedding-001"],
+    "default": "gemini-embedding-001"
+  }
+}
+```
+
+### Option 2: Custom Config Path
+
+Set the `GEMINI_MODELS_CONFIG` environment variable:
+
+```bash
+export GEMINI_MODELS_CONFIG="/path/to/my-models.json"
+```
+
+### Adding New Models
+
+When Google releases new models (e.g., `gemini-4-flash`):
+
+1. Add to the appropriate `models` array
+2. Optionally set as `default`
+3. Restart Claude Code
+
+No code changes or rebuilds required!
+
 ## 🔧 Development
 
 ```bash
@@ -281,8 +451,22 @@ npm run inspector    # Debug with MCP Inspector
 
 ### Troubleshooting
 
+**Authentication Failures:**
+
+| Error | Cause | Solution |
+|-------|-------|----------|
+| `UNAUTHENTICATED` | No valid credentials | Run `gcloud auth application-default login` or set `GEMINI_API_KEY` |
+| `ACCESS_TOKEN_SCOPE_INSUFFICIENT` | OAuth scopes missing | Use gcloud ADC instead of Gemini CLI |
+| `restricted_client` | OAuth client can't request scope | Use gcloud ADC (Option A) |
+| `API key not valid` | Invalid or expired API key | Get new key from [AI Studio](https://aistudio.google.com/apikey) |
+
+**Authentication Priority:**
+1. `GEMINI_API_KEY` environment variable (if set)
+2. gcloud ADC (`application_default_credentials.json`)
+3. Gemini CLI OAuth (`oauth_creds.json`)
+
 **Connection Failures:**
-1. Verify your API key is correct
+1. Verify credentials are valid
 2. Check that the command path is correct (for local installs)
 3. Restart Claude Code after configuration changes
 

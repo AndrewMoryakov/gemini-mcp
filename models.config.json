@@ -1,0 +1,41 @@
+{
+  "$schema": "./models.schema.json",
+  "_comment": "Gemini MCP Model Configuration. Edit this file to add/remove models.",
+
+  "chat": {
+    "models": [
+      "gemini-3-flash-preview",
+      "gemini-3-pro-preview",
+      "gemini-2.5-pro",
+      "gemini-2.5-flash",
+      "gemini-2.0-flash-exp"
+    ],
+    "default": "gemini-3-flash-preview"
+  },
+
+  "batch": {
+    "models": [
+      "gemini-3-pro-preview",
+      "gemini-3-flash-preview",
+      "gemini-2.5-pro",
+      "gemini-2.5-flash",
+      "gemini-2.0-flash-exp"
+    ],
+    "default": "gemini-2.5-flash"
+  },
+
+  "image": {
+    "models": [
+      "gemini-3-pro-image-preview",
+      "gemini-2.5-flash-image"
+    ],
+    "default": "gemini-3-pro-image-preview"
+  },
+
+  "embedding": {
+    "models": [
+      "gemini-embedding-001"
+    ],
+    "default": "gemini-embedding-001"
+  }
+}

@@ -28,19 +28,87 @@ import {
 } from "./types/gemini.js";
 import { createPartFromUri } from "@google/genai";
 
+// Default model configuration (can be overridden by models.config.json or GEMINI_MODELS_CONFIG env var)
+const DEFAULT_MODEL_CONFIG = {
+  chat: {
+    models: ["gemini-3-flash-preview", "gemini-3-pro-preview", "gemini-2.5-pro", "gemini-2.5-flash", "gemini-2.0-flash-exp"],
+    default: "gemini-3-flash-preview"
+  },
+  batch: {
+    models: ["gemini-3-pro-preview", "gemini-3-flash-preview", "gemini-2.5-pro", "gemini-2.5-flash", "gemini-2.0-flash-exp"],
+    default: "gemini-2.5-flash"
+  },
+  image: {
+    models: ["gemini-3-pro-image-preview", "gemini-2.5-flash-image"],
+    default: "gemini-3-pro-image-preview"
+  },
+  embedding: {
+    models: ["gemini-embedding-001"],
+    default: "gemini-embedding-001"
+  }
+};
+
+interface ModelConfig {
+  models: string[];
+  default: string;
+}
+
+interface ModelsConfiguration {
+  chat: ModelConfig;
+  batch: ModelConfig;
+  image: ModelConfig;
+  embedding: ModelConfig;
+}
+
+// Load model configuration from file or environment
+function loadModelConfig(): ModelsConfiguration {
+  const fs = require("fs");
+  const path = require("path");
+
+  // Try environment variable first (path to config file)
+  const envConfigPath = process.env.GEMINI_MODELS_CONFIG;
+  if (envConfigPath && fs.existsSync(envConfigPath)) {
+    try {
+      const config = JSON.parse(fs.readFileSync(envConfigPath, "utf-8"));
+      console.error("[Config] Loaded models from:", envConfigPath);
+      return { ...DEFAULT_MODEL_CONFIG, ...config };
+    } catch (e: any) {
+      console.error("[Config] Error loading config from env path:", e.message);
+    }
+  }
+
+  // Try config file in package directory
+  const localConfigPath = path.join(__dirname, "..", "models.config.json");
+  if (fs.existsSync(localConfigPath)) {
+    try {
+      const config = JSON.parse(fs.readFileSync(localConfigPath, "utf-8"));
+      console.error("[Config] Loaded models from:", localConfigPath);
+      return { ...DEFAULT_MODEL_CONFIG, ...config };
+    } catch (e: any) {
+      console.error("[Config] Error loading local config:", e.message);
+    }
+  }
+
+  console.error("[Config] Using default model configuration");
+  return DEFAULT_MODEL_CONFIG;
+}
+
+const MODEL_CONFIG = loadModelConfig();
+
+// Legacy MODELS constant for backward compatibility
 const MODELS = {
-  // Gemini 3 models (newest - default)
-  PRO_3: "gemini-3-pro-preview",
-  FLASH_3: "gemini-3-flash-preview",
-  IMAGE_GEN_3: "gemini-3-pro-image-preview",
-  // Gemini 2.5 models
-  PRO_25: "gemini-2.5-pro",
-  FLASH_25: "gemini-2.5-flash",
-  IMAGE_GEN_25: "gemini-2.5-flash-image",
-  // Gemini 2.0 models
-  FLASH_20: "gemini-2.0-flash-exp",
-  // Utility models
-  EMBEDDING: "gemini-embedding-001",
+  // Chat models
+  FLASH_3: MODEL_CONFIG.chat.default,
+  PRO_3: MODEL_CONFIG.chat.models.find(m => m.includes("pro") && m.includes("3")) || "gemini-3-pro-preview",
+  // Batch models
+  FLASH_25: MODEL_CONFIG.batch.default,
+  PRO_25: MODEL_CONFIG.batch.models.find(m => m.includes("pro") && m.includes("2.5")) || "gemini-2.5-pro",
+  FLASH_20: MODEL_CONFIG.batch.models.find(m => m.includes("2.0")) || "gemini-2.0-flash-exp",
+  // Image models
+  IMAGE_GEN_3: MODEL_CONFIG.image.default,
+  IMAGE_GEN_25: MODEL_CONFIG.image.models.find(m => m.includes("2.5")) || "gemini-2.5-flash-image",
+  // Embedding models
+  EMBEDDING: MODEL_CONFIG.embedding.default,
 } as const;
 
 // Upload configuration - balanced for typical 1-10 file use cases
@@ -64,6 +132,14 @@ interface MultipleUploadResult {
   }>;
 }
 
+// Session-level model defaults (can be changed at runtime without restart)
+interface SessionModelDefaults {
+  chat: string | null;
+  batch: string | null;
+  image: string | null;
+  embedding: string | null;
+}
+
 class GeminiMCPServer {
   private server: Server;
   private genAI: any = null;
@@ -71,6 +147,7 @@ class GeminiMCPServer {
   private conversations: Map<string, ConversationSession> = new Map();
   private uploadedFiles: Map<string, UploadedFile> = new Map();
   private fileObjects: Map<string, any> = new Map(); // Store actual file objects from Gemini
+  private sessionDefaults: SessionModelDefaults = { chat: null, batch: null, image: null, embedding: null };
 
   constructor() {
     this.server = new Server(
@@ -151,9 +228,13 @@ class GeminiMCPServer {
     const os = await import("os");
     const path = await import("path");
 
-    // Find OAuth credentials from Gemini CLI
+    // Find OAuth credentials from Gemini CLI or gcloud ADC
     const homeDir = os.homedir();
     const possiblePaths = [
+      // gcloud Application Default Credentials (priority - has correct scopes)
+      path.join(homeDir, "AppData", "Roaming", "gcloud", "application_default_credentials.json"),
+      path.join(homeDir, ".config", "gcloud", "application_default_credentials.json"),
+      // Gemini CLI credentials (fallback)
       path.join(homeDir, ".gemini", "oauth_creds.json"),
       path.join(homeDir, "AppData", "Roaming", "gemini", "oauth_creds.json"),
       path.join(homeDir, ".config", "gemini", "oauth_creds.json"),
@@ -179,12 +260,19 @@ class GeminiMCPServer {
       const credsContent = fs.readFileSync(credsPath, "utf-8");
       this.oauthCreds = JSON.parse(credsContent);
 
-      // Check if token is expired
+      // Detect gcloud ADC format (has type: "authorized_user" and client_id in file)
+      const isGcloudADC = this.oauthCreds.type === "authorized_user" && this.oauthCreds.client_id;
+      if (isGcloudADC) {
+        console.error("[OAuth] Detected gcloud Application Default Credentials");
+      }
+
+      // Check if token is expired (gcloud ADC has no access_token initially)
       const now = Date.now();
       const expiryDate = this.oauthCreds.expiry_date || 0;
+      const hasValidToken = this.oauthCreds.access_token && now < expiryDate - 60000;
 
-      if (now >= expiryDate - 60000) { // Refresh if expires within 1 minute
-        console.error("[OAuth] Access token expired, refreshing...");
+      if (!hasValidToken) {
+        console.error("[OAuth] Access token missing or expired, refreshing...");
         const newToken = await this.refreshOAuthToken();
         if (newToken) {
           return newToken;
@@ -208,13 +296,26 @@ class GeminiMCPServer {
     }
 
     try {
-      // Gemini CLI OAuth client credentials (public, from google-gemini/gemini-cli)
-      // These are intentionally public OAuth credentials for CLI tools
-      // Split to avoid GitHub secret scanning false positives
-      const clientId = process.env.GEMINI_OAUTH_CLIENT_ID ||
-        ["681255809395", "oo8ft2oprdrnp9e3aqf6av3hmdib135j", "apps.googleusercontent.com"].join("-").replace("-apps", ".apps");
-      const clientSecret = process.env.GEMINI_OAUTH_CLIENT_SECRET ||
-        ["GOCSPX", "WN5rSBjKmFqnF0tO1ZCzMO7r", "tHT"].join("-");
+      // Use client_id/client_secret from credentials file if available (gcloud ADC)
+      // Otherwise fall back to Gemini CLI OAuth client credentials
+      let clientId: string;
+      let clientSecret: string;
+
+      if (this.oauthCreds.client_id && this.oauthCreds.client_secret) {
+        // gcloud ADC has its own credentials
+        clientId = this.oauthCreds.client_id;
+        clientSecret = this.oauthCreds.client_secret;
+        console.error("[OAuth] Using gcloud ADC client credentials");
+      } else {
+        // Gemini CLI OAuth client credentials (public, from google-gemini/gemini-cli)
+        // These are intentionally public OAuth credentials for CLI tools
+        // Split to avoid GitHub secret scanning false positives
+        clientId = process.env.GEMINI_OAUTH_CLIENT_ID ||
+          ["681255809395", "oo8ft2oprdrnp9e3aqf6av3hmdib135j", "apps.googleusercontent.com"].join("-").replace("-apps", ".apps");
+        clientSecret = process.env.GEMINI_OAUTH_CLIENT_SECRET ||
+          ["GOCSPX", "WN5rSBjKmFqnF0tO1ZCzMO7r", "tHT"].join("-");
+        console.error("[OAuth] Using Gemini CLI client credentials");
+      }
 
       const response = await fetch("https://oauth2.googleapis.com/token", {
         method: "POST",
@@ -432,9 +533,9 @@ class GeminiMCPServer {
                 },
                 model: {
                   type: "string",
-                  enum: [MODELS.FLASH_3, MODELS.PRO_3, MODELS.PRO_25, MODELS.FLASH_25, MODELS.FLASH_20],
+                  enum: MODEL_CONFIG.chat.models,
                   description: "The Gemini model to use",
-                  default: MODELS.FLASH_3,
+                  default: MODEL_CONFIG.chat.default,
                 },
                 fileUris: {
                   type: "array",
@@ -518,6 +619,33 @@ class GeminiMCPServer {
             },
           },
           {
+            name: "set_default_model",
+            description: "SET SESSION DEFAULT MODEL - Change the default model for a category (chat, batch, image, embedding) for the current session. This persists until MCP server restart. Use to switch between models without specifying in every request. RETURNS: confirmation with old and new default. Use get_default_models to see current defaults.",
+            inputSchema: {
+              type: "object",
+              properties: {
+                category: {
+                  type: "string",
+                  enum: ["chat", "batch", "image", "embedding"],
+                  description: "Which category to change: chat (conversations), batch (batch processing), image (generation), embedding (vectors)",
+                },
+                model: {
+                  type: "string",
+                  description: "Model ID to set as default (e.g., 'gemini-3-flash-preview', 'gemini-2.5-pro')",
+                },
+              },
+              required: ["category", "model"],
+            },
+          },
+          {
+            name: "get_default_models",
+            description: "GET CURRENT DEFAULT MODELS - Shows the current default model for each category (chat, batch, image, embedding). Includes both config defaults and session overrides.",
+            inputSchema: {
+              type: "object",
+              properties: {},
+            },
+          },
+          {
             name: "upload_file",
             description: "UPLOAD SINGLE FILE - Standard method for uploading one file to Gemini. BEST FOR: Single documents, images, or code files for immediate analysis. Includes automatic retry and state monitoring until file is ready. WORKFLOW: 1) Upload with auto-detected MIME type, 2) Wait for processing to complete (usually 10-30 seconds), 3) Returns URI for chat tool. RETURNS: fileUri (pass to chat tool), displayName, mimeType, sizeBytes, state. Files auto-delete after 48 hours. For 2+ files, consider upload_multiple_files for efficiency.",
             inputSchema: {
@@ -597,9 +725,9 @@ class GeminiMCPServer {
               properties: {
                 model: {
                   type: "string",
-                  enum: [MODELS.PRO_3, MODELS.FLASH_3, MODELS.PRO_25, MODELS.FLASH_25, MODELS.FLASH_20],
+                  enum: MODEL_CONFIG.batch.models,
                   description: "Gemini model for content generation",
-                  default: MODELS.FLASH_25,
+                  default: MODEL_CONFIG.batch.default,
                 },
                 requests: {
                   type: "array",
@@ -649,9 +777,9 @@ class GeminiMCPServer {
                 },
                 model: {
                   type: "string",
-                  enum: [MODELS.PRO_3, MODELS.FLASH_3, MODELS.PRO_25, MODELS.FLASH_25, MODELS.FLASH_20],
+                  enum: MODEL_CONFIG.batch.models,
                   description: "Gemini model for content generation",
-                  default: MODELS.FLASH_25,
+                  default: MODEL_CONFIG.batch.default,
                 },
                 outputLocation: {
                   type: "string",
@@ -751,8 +879,8 @@ class GeminiMCPServer {
                 model: {
                   type: "string",
                   description: "Embedding model",
-                  default: MODELS.EMBEDDING,
-                  enum: [MODELS.EMBEDDING],
+                  default: MODEL_CONFIG.embedding.default,
+                  enum: MODEL_CONFIG.embedding.models,
                 },
                 requests: {
                   type: "array",
@@ -797,8 +925,8 @@ class GeminiMCPServer {
                 model: {
                   type: "string",
                   description: "Embedding model",
-                  default: MODELS.EMBEDDING,
-                  enum: [MODELS.EMBEDDING],
+                  default: MODEL_CONFIG.embedding.default,
+                  enum: MODEL_CONFIG.embedding.models,
                 },
                 outputLocation: {
                   type: "string",
@@ -898,9 +1026,9 @@ class GeminiMCPServer {
                 },
                 model: {
                   type: "string",
-                  enum: [MODELS.IMAGE_GEN_3, MODELS.IMAGE_GEN_25],
+                  enum: MODEL_CONFIG.image.models,
                   description: "Image generation model (default: gemini-3-pro-image-preview)",
-                  default: MODELS.IMAGE_GEN_3,
+                  default: MODEL_CONFIG.image.default,
                 },
                 aspectRatio: {
                   type: "string",
@@ -952,6 +1080,10 @@ class GeminiMCPServer {
             return await this.handleStartConversation(args);
           case "clear_conversation":
             return await this.handleClearConversation(args);
+          case "set_default_model":
+            return this.handleSetDefaultModel(args);
+          case "get_default_models":
+            return this.handleGetDefaultModels();
           case "upload_file":
             return await this.handleUploadFile(args);
           case "list_files":
@@ -1540,7 +1672,7 @@ class GeminiMCPServer {
 
   private async handleChat(args: any) {
     const message = args?.message;
-    const model = args?.model || MODELS.FLASH_3;
+    const model = args?.model || this.sessionDefaults.chat || MODEL_CONFIG.chat.default;
     const fileUris = args?.fileUris || [];
     const temperature = args?.temperature || 1.0;
     const maxTokens = args?.maxTokens || 15000;
@@ -1774,6 +1906,98 @@ class GeminiMCPServer {
         ],
       };
     }
+  }
+
+  /**
+   * Set the default model for a category (session-level, persists until restart)
+   */
+  private handleSetDefaultModel(args: any) {
+    const category = args?.category as keyof SessionModelDefaults;
+    const model = args?.model;
+
+    if (!category || !["chat", "batch", "image", "embedding"].includes(category)) {
+      throw new McpError(
+        ErrorCode.InvalidParams,
+        "category must be one of: chat, batch, image, embedding"
+      );
+    }
+
+    if (!model) {
+      throw new McpError(
+        ErrorCode.InvalidParams,
+        "model is required"
+      );
+    }
+
+    // Validate model is in the allowed list for this category
+    const allowedModels = MODEL_CONFIG[category].models;
+    if (!allowedModels.includes(model)) {
+      throw new McpError(
+        ErrorCode.InvalidParams,
+        `Invalid model '${model}' for category '${category}'. Allowed models: ${allowedModels.join(", ")}`
+      );
+    }
+
+    const oldDefault = this.sessionDefaults[category] || MODEL_CONFIG[category].default;
+    this.sessionDefaults[category] = model;
+
+    console.error(`[Config] Session default for ${category} changed: ${oldDefault} -> ${model}`);
+
+    return {
+      content: [
+        {
+          type: "text",
+          text: JSON.stringify({
+            message: `Default model for '${category}' changed`,
+            category,
+            oldDefault,
+            newDefault: model,
+            note: "This change persists until MCP server restart"
+          }, null, 2),
+        },
+      ],
+    };
+  }
+
+  /**
+   * Get current default models for all categories
+   */
+  private handleGetDefaultModels() {
+    const defaults = {
+      chat: {
+        configDefault: MODEL_CONFIG.chat.default,
+        sessionOverride: this.sessionDefaults.chat,
+        effective: this.sessionDefaults.chat || MODEL_CONFIG.chat.default,
+        availableModels: MODEL_CONFIG.chat.models,
+      },
+      batch: {
+        configDefault: MODEL_CONFIG.batch.default,
+        sessionOverride: this.sessionDefaults.batch,
+        effective: this.sessionDefaults.batch || MODEL_CONFIG.batch.default,
+        availableModels: MODEL_CONFIG.batch.models,
+      },
+      image: {
+        configDefault: MODEL_CONFIG.image.default,
+        sessionOverride: this.sessionDefaults.image,
+        effective: this.sessionDefaults.image || MODEL_CONFIG.image.default,
+        availableModels: MODEL_CONFIG.image.models,
+      },
+      embedding: {
+        configDefault: MODEL_CONFIG.embedding.default,
+        sessionOverride: this.sessionDefaults.embedding,
+        effective: this.sessionDefaults.embedding || MODEL_CONFIG.embedding.default,
+        availableModels: MODEL_CONFIG.embedding.models,
+      },
+    };
+
+    return {
+      content: [
+        {
+          type: "text",
+          text: JSON.stringify(defaults, null, 2),
+        },
+      ],
+    };
   }
 
   private async handleUploadFile(args: any) {
@@ -2046,7 +2270,7 @@ class GeminiMCPServer {
    * Creates a new batch job for content generation
    */
   private async handleBatchCreate(args: any) {
-    const model = args?.model || MODELS.FLASH_25;
+    const model = args?.model || this.sessionDefaults.batch || MODEL_CONFIG.batch.default;
     const requests = args?.requests;
     const inputFileUri = args?.inputFileUri;
     const displayName = args?.displayName;
@@ -2379,7 +2603,7 @@ class GeminiMCPServer {
    */
   private async handleBatchProcess(args: any) {
     const inputFile = args?.inputFile;
-    const model = args?.model || MODELS.FLASH_25;
+    const model = args?.model || this.sessionDefaults.batch || MODEL_CONFIG.batch.default;
     const outputLocation = args?.outputLocation || process.cwd();
     const pollIntervalSeconds = args?.pollIntervalSeconds || 30;
     const config = args?.config || {};
@@ -2526,7 +2750,7 @@ class GeminiMCPServer {
    * Creates batch job for embeddings generation
    */
   private async handleBatchCreateEmbeddings(args: any) {
-    const model = args?.model || MODELS.EMBEDDING;
+    const model = args?.model || this.sessionDefaults.embedding || MODEL_CONFIG.embedding.default;
     const requests = args?.requests;
     const inputFileUri = args?.inputFileUri;
     const taskType = args?.taskType;
@@ -2620,7 +2844,7 @@ class GeminiMCPServer {
   private async handleBatchProcessEmbeddings(args: any) {
     const inputFile = args?.inputFile;
     const taskType = args?.taskType;
-    const model = args?.model || MODELS.EMBEDDING;
+    const model = args?.model || this.sessionDefaults.embedding || MODEL_CONFIG.embedding.default;
     const outputLocation = args?.outputLocation || process.cwd();
     const pollIntervalSeconds = args?.pollIntervalSeconds || 30;
 
@@ -3078,7 +3302,7 @@ class GeminiMCPServer {
 
   private async handleGenerateImages(args: any) {
     const prompt = args?.prompt;
-    const model = args?.model || MODELS.IMAGE_GEN_3;
+    const model = args?.model || this.sessionDefaults.image || MODEL_CONFIG.image.default;
     const aspectRatio = args?.aspectRatio || "1:1";
     const numImages = args?.numImages || 1;
     const outputDir = args?.outputDir || "./generated-images";
