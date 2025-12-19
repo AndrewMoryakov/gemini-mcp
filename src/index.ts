@@ -11,6 +11,11 @@ import {
   McpError,
 } from "@modelcontextprotocol/sdk/types.js";
 import * as path from "path";
+import * as fs from "fs";
+import { fileURLToPath } from "url";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 import {
   GeminiMessage,
   ChatArgs,
@@ -62,8 +67,6 @@ interface ModelsConfiguration {
 
 // Load model configuration from file or environment
 function loadModelConfig(): ModelsConfiguration {
-  const fs = require("fs");
-  const path = require("path");
 
   // Try environment variable first (path to config file)
   const envConfigPath = process.env.GEMINI_MODELS_CONFIG;
